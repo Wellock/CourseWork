@@ -5,13 +5,22 @@
 #include <math.h>
 #define SIZE 30
 
+
+typedef struct {
+	double start;
+	double finale;
+	double step;
+	int countstep;
+	double error;
+} info;
+
 double function(double x);
-void build_tabl(float st, float step, int qua, char* name);
-char* monotony(double start, double finale, int step, char* name);
-double X_on_Y(double znachY, double error, double start, double fin);
+int build_tabl(info z, char* name, char mode);
+char* monotony(info z, char* name);
+double X_on_Y(double znachY, info z);
 double derivative(double x, double error);
 int write_doc(char* name, double numb, int chois);
-void read_and_build_table(char* name);
+int read_and_build_table(char* name);
 
 void main()
 
@@ -33,7 +42,7 @@ void main()
 	{
 		int choice;
 
-		puts("\nЧто вы хотите?\n1. Значение функции в точке\n2. Таблица значений\n3. Анализ монотонности\n4. Поиск Х по Y\n5. Производная в точке\n6. Установить точность вычислений\n7. Почитать файл и составить таблицу\n0. Выход\n");
+		puts("\nЧто вы хотите?\n1. Значение функции в точке\n2. Таблица значений\n3. Анализ монотонности\n4. Поиск Х по Y\n5. Производная в точке\n6. Установить точность вычислений\n7. Прочитать файл и составить таблицу\n0. Выход\n");
 		scanf("%i", &choice);
 		switch (choice)
 		{
@@ -47,42 +56,76 @@ void main()
 			break;
 		case 2:
 			puts("Введие начало отсчета");
-			float start;
-			scanf("%f", &start);
+			info task2;
+			//float start;
+			scanf("%lf", &task2.start);
 			puts("Введие шаг");
-			float step;
-			scanf("%f", &step);
+			//float step;
+			scanf("%lf", &task2.step);
 			puts("Введие количиство отсчетов");
-			int qua;
-			scanf("%i", &qua);
-			build_tabl(start, step, qua, resultat);
+			//int qua;
+			scanf("%i", &task2.countstep);
+			build_tabl(task2, resultat, 'c');
+			if (build_tabl(task2, resultat, 'f') == 0)
+			{
+				fprintf(stderr, "Ошибка открытия файла\n");
+			}
 			break;
 		case 3:
 			puts("Введите начало интервала");
-			double st_extreme;
-			scanf("%lf", &st_extreme);
+			info task3;
+			//double st_extreme;
+			scanf("%lf", &task3.start);
 			puts("Введите конец интервала");
-			double fi_extreme;
-			scanf("%lf", &fi_extreme);
+			//double fi_extreme;
+			scanf("%lf", &task3.finale);
 			puts("Введите количество проверочных точек");
-			int quantity;
-			scanf("%i", &quantity);
-			puts(monotony(st_extreme, fi_extreme, quantity, resultat));
+			//int quantity;
+			scanf("%i", &task3.countstep);
+			char mono = monotony(task3, resultat);
+			switch (mono) 
+			{
+			case '+':
+				printf("На промежутке [%.3lf, %.3lf] функция возрастает\n", task3.start, task3.finale);
+				break;
+			case '-':
+				printf("На промежутке [%.3lf, %.3lf] функция убывает\n", task3.start, task3.finale);
+				break;
+			case '=':
+				printf("На промежутке [%.3lf, %.3lf] функция не является монотонной\n", task3.start, task3.finale);
+				break;
+			case 'с':
+				printf("На промежутке [%.3lf, %.3lf] функция постоянна и не является монотонной\n", task3.start, task3.finale);
+				break;
+			case '?':
+				printf("На промежутке [%.3lf, %.3lf] не удалось определить характер функции\n", task3.start, task3.finale);
+				break;
+			}
+
 			break;
 		case 4:
 
 			puts("Введите значение функции");
+			info task4;
 			double y;
 			scanf("%lf", &y);
 			puts("Введите начало интервала");
-			double start_p4;
-			double finale_p4;
-			scanf("%lf", &start_p4);
+			//double start_p4;
+			//double finale_p4;
+			scanf("%lf", &task4.start);
 			puts("Введите конец интервала");
-			scanf("%lf", &finale_p4);
+			scanf("%lf", &task4.finale);
 
-			printf("X = %lf\n", X_on_Y(y, error_rate, start_p4, finale_p4));
-			write_doc(resultat, X_on_Y(y, error_rate, start_p4, finale_p4), 4);
+			task4.error = error_rate;
+			if (isnan(X_on_Y(y, task4)))
+			{
+				printf("На данном промежутке таких значений нет\n");
+			}
+			else 
+			{
+				printf("X = %lf\n", X_on_Y(y, task4));
+			}
+			write_doc(resultat, X_on_Y(y, task4), 4);
 			break;
 
 
@@ -102,7 +145,19 @@ void main()
 			puts("Введите название файла\n");
 			char tabl[21];
 			scanf("%99s", tabl);
-			read_and_build_table(tabl);
+			int res = read_and_build_table(tabl);
+			switch (res)
+			{
+			case -1:
+				fprintf(stderr, "Ошибка: не удалось открыть файл\n");
+				break;
+			case -2:
+				printf(stderr, "Ошибка: в файле нет данных\n");
+				break;
+			case 0:
+				printf("Таблица успешно записана\n");
+				break;
+			}
 			break;
 		case 0:
 			rep = 0;
@@ -128,29 +183,40 @@ double function(double x)
 	return y;
 }
 
-void build_tabl(float st, float step, int qua, char* name)
+int build_tabl(info z, char* name, char mode)
 {
-	FILE* out;
-	if ((out = fopen(name, "at")) == NULL)
+	double x = z.start;
+	FILE* out = NULL;
+	if (mode == 'f')
 	{
-		printf("Ошибка записи данных");
-		return 0;
+		if ((out = fopen(name, "at")) == NULL)
+		{
+			return 0;
+		}
 	}
-	puts("| Значение х | Значение f(x) |");
-	for (int i = 0; i < qua; i++, st = st + step)
+	if (mode == 'c')
 	{
-		printf("| %10.4g | %13.4g |\n", st, function(st));
-		fprintf(out, "| %10.4g | %13.4g |\n", st, function(st));
+		out = stdout;
 	}
-	fclose(out);
+	fprintf(out, "| Значение х | Значение f(x) |\n");
+	for (int i = 0; i < z.countstep; i++)
+	{
+		fprintf(out, "| %10.4g | %13.4g |\n", x, function(x));
+		x = x + z.step;
+	}
+	if (mode == 'f')
+	{
+		fclose(out);
+	}
+	return 1;
 }
 
 
 
-char* monotony(double start, double finale, int step, char* name)
+char* monotony(info z, char* name)
 {
-	double g = (finale - start) / (step - 1);
-	double first_y = function(start);
+	double g = (z.finale - z.start) / (z.countstep - 1);
+	double first_y = function(z.start);
 	_Bool up = 0;
 	_Bool down = 0;
 	_Bool constant = 1;
@@ -160,9 +226,9 @@ char* monotony(double start, double finale, int step, char* name)
 		printf("Ошибка записи данных");
 		return 0;
 	}
-	for (int i = 1; i < step; i++)
+	for (int i = 1; i < z.countstep; i++)
 	{
-		double x = start + i * g;
+		double x = z.start + i * g;
 		double second_y = function(x);
 		if (second_y > first_y)
 		{
@@ -176,54 +242,78 @@ char* monotony(double start, double finale, int step, char* name)
 		}
 		first_y = second_y;
 	}
-	printf("Анализ монотонности на [%lf, %lf]: \n", start, finale);
 	if (constant)
 	{
-		fprintf(out, "На данном промежутке\n");
-		fprintf(out, "Функция постоянно на данном отрезке\n");
+		fprintf(out, "На промежутке [%.3lf, %.3lf]\n Функция постоянна\n", z.start, z.finale);
 		fclose(out);
-		return "Функция постоянно на данном отрезке";
+		return 'c';
 	}
 	else if (up && !down)
 	{
-		fprintf(out, "На данном промежутке\n");
-		fprintf(out, "Функция монотонно возрастает\n");
+		fprintf(out, "На промежутке [%.3lf, %.3lf]\n Функция возрастает\n", z.start, z.finale);
 		fclose(out);
-		return "Функция монотонно возрастает";
+		return '+' ;
 	}
 	else if (!up && down)
 	{
-		fprintf(out, "На данном промежутке\n");
-		fprintf(out, "Функция монотонно убывает\n");
+		fprintf(out, "На промежутке [%.3lf, %.3lf]\n Функция убывает\n", z.start, z.finale);
 		fclose(out);
-		return "Функция монотонно убывает";
+		return '-';
 	}
 	else if (up && down)
 	{
-		fprintf(out, "На данном промежутке\n");
-		fprintf(out, "Функция не является монотонной\n");
+		fprintf(out, "На промежутке [%.3lf, %.3lf]\n Функция не монотонна\n", z.start, z.finale);
 		fclose(out);
-		return "Функция не является монотонной";
+		return '=';
 	}
 	else
 	{
-		fprintf(out, "На данном промежутке\n");
-		fprintf(out, "Не удалось определить характер функции\n");
+		fprintf(out, "На промежутке [%.3lf, %.3lf]\n не удалось определить характер функции\n", z.start, z.finale);
 		fclose(out);
-		return "Не удалось определить характер функции";
+		return '?';
 	}
 }
 
-double X_on_Y( double znachY, double error, double start, double fin)
+double X_on_Y( double znachY, info z)
 {
-	double step = 0.00001;
-	double x = start;
+
+	/*double f_left = function(z.start);
+	double f_right = function(z.finale);
+	double dist_left = f_left - znachY;
+	double dist_right = f_right - znachY;
+	double mid;
+	double f_mid;
+	for (int i = 0; i < 100000; i++)
+	{
+		mid = (z.start + z.finale) / 2.0;
+		f_mid = function(mid);
+		double dist_mid = f_mid - znachY;
+		if (fabs(f_mid - znachY) < z.error)
+		{
+			return mid;
+		}
+		if (dist_left * dist_mid <= 0) 
+		{
+
+			z.finale = mid;
+			dist_right = dist_mid;
+		}
+		else 
+		{
+			z.start = mid;
+			dist_left = dist_mid;
+		}
+	}
+	return NAN;*/
+
+	double step = 0.0001;
+	double x = z.start;
 	_Bool pr = 0;
-	while (x <= fin)
+	while (x <= z.finale)
 	{
 		double fx = function(x);
 		double diff = fabs(fx - znachY);
-		if (diff < error && pr == 0)
+		if (diff < z.error && pr == 0)
 		{
 
 			return x;
@@ -234,12 +324,9 @@ double X_on_Y( double znachY, double error, double start, double fin)
 	}
 	if (pr == 0)
 	{
-		printf("На данном промежутке таких значений нет\n");
+		return NAN;
 	}
-	return 0;
 }
-
-
 
 
 double derivative(double x, double error)
@@ -270,9 +357,9 @@ int write_doc(char* name, double numb, int chois)
 	{
 		printf("Производится запись найденного X по Y\n");
 		fprintf(out, "Запись значения X по Y\n");
-		if (numb == 0)
+		if (numb == NAN)
 		{
-			fprintf(out, "На этом интервале таких значений нет");
+			fprintf(out, "На этом интервале таких значений нет\n");
 			fclose(out);
 		}
 		else
@@ -299,7 +386,7 @@ int write_doc(char* name, double numb, int chois)
 }
 
 
-void read_and_build_table(char* name)
+int read_and_build_table(char* name)
 {
 	FILE* file;
 	double x[SIZE];
@@ -307,8 +394,7 @@ void read_and_build_table(char* name)
 
 	if ((file = fopen(name, "r")) == NULL)
 	{
-		printf("Ошибка открытия файла для чтения\n");
-		return;
+		return -1;
 	}
 
 	while (count < SIZE && fscanf(file, "%lf", &x[count]) == 1)
@@ -320,25 +406,26 @@ void read_and_build_table(char* name)
 
 	if (count == 0)
 	{
-		printf("В файле нет числовых значений\n");
-		return;
+		return -2;
 	}
 
 	if ((file = fopen(name, "a")) == NULL)
 	{
-		printf("Ошибка открытия файла для записи\n");
-		return;
+		return -1;
 	}
 
 	fprintf(file, "\n| Значение x | Значение f(x) |\n");
-	printf("\n| Значение x | Значение f(x) |\n");
+	//printf("\n| Значение x | Значение f(x) |\n");
+	int k = 0;
 
 	for (int i = 0; i < count; i++)
 	{
 		double y = function(x[i]);
 		fprintf(file, "| %10.4g | %13.4g |\n", x[i], y);
-		printf("| %10.4g | %13.4g |\n", x[i], y);
+		//printf("| %10.4g | %13.4g |\n", x[i], y);
+		k += 1;
 	}
+	if (k == count) return 0;
 
 	fclose(file);
 }
